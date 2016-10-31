@@ -30,37 +30,53 @@ r_soup=BeautifulSoup(r.text,'lxml')
 #print(r_soup.get_text())
 #with open('source.txt','w') as f:
 #    f.write(r_soup.prettify())
-
-tables=r_soup.findAll('td',style='width:250px;')
 entries=[]
-for i,t in enumerate(tables):
-    #print(i)
-    a=t.find('a',target='_blank')
-    #print(a.get_text())
-    href='http://s.crpa.net.cn/'+a.get('href')
-    #print(href)
-    entries.append((a.get_text(),href))
 
-#%%    
+cur_soup=r_soup
+while cur_soup is not None:
+    tables=cur_soup.findAll('td',style='width:250px;')
+    if len(tables)==0:
+        tables=cur_soup.findAll('td',width='250')
+    for i,t in enumerate(tables):
+        a=t.find('a',target='_blank')
+        #print(a.get_text())
+
+        href='http://s.crpa.net.cn/'+a.get('href')
+        #print(href)
+        print(a.get_text())
+        entries.append((a.get_text(),href))
+    next_page=cur_soup.find('a',id='hylnext')
+    if next_page is None:
+        cur_soup=None
+    else:
+        next_page_url='http://s.crpa.net.cn/'+next_page.get('href')
+        print(next_page_url)
+        next_page_resp=session.get(next_page_url)
+        print('nextpage')
+        print(next_page_resp.text)
+        cur_soup=BeautifulSoup(next_page_resp.text,'lxml')
+
+#for i,e in enumerate(entries):
+#    print(i,e)
+
+#%%
 for name,entry_url in entries:
     entry=session.get(entry_url)
     soup=BeautifulSoup(entry.text,'lxml')
     table=soup.find('table',id='GridView1')
-    if table is not None:    
+    if table is not None:
        output=[]
        while table is not None:
             rows=table.findAll('tr')
-
+            #print('num rows',len(rows))
             if len(rows)>0:
-                print('name rows',len(rows))
-                        
                 for row in rows:
                     cells=row.findAll('td')
                     strings=[c.get_text() for c in cells]
                     line=','.join(strings)
                     output.append(line)
             next_page=soup.find('a',id='hylnext')
-            print('next_page is ',next_page)
+            #rint('next_page is ',next_page)
             if next_page is None:
                 table=None
             else:
