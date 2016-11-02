@@ -6,6 +6,9 @@ from PIL import Image
 from bs4 import BeautifulSoup
 
 session=requests.session()
+adapter = requests.adapters.HTTPAdapter(pool_connections=2000, pool_maxsize=2000)
+session.mount('http://', adapter)
+
 def test():
     count=0
     while True:
@@ -16,23 +19,25 @@ def test():
         index=rrr.text.find('请输入验证码登录')
         if index>0:
             return count 
-def login():
+def login(yundama=False):
     url='http://s.crpa.net.cn/mlogin.aspx'
 
-    r=session.get(url)
-    r_soup=BeautifulSoup(r.text,'lxml')
     image_src="http://s.crpa.net.cn/mlogin_img.aspx"
     with open('captcha.jpg','wb') as f:
         image=session.get(image_src)
         f.write(image.content)
-    im=Image.open('captcha.jpg')
-    im.show()
-    im.close()
     
     
-    captcha=input('Input captcha:')
-    
-   
+    if yundama==False:
+        im=Image.open('captcha.jpg')
+        im.show()
+        im.close()
+        captcha=input('Input captcha:')
+    else:
+        from yundama import YunDaMa
+        ydm=YunDaMa('firearasi','icw4ever')
+        cid,captcha=ydm.get_captcha(image.content,'captcha.jpg','image/jpeg')
+        print('captcha recognized:',captcha)
     postdata={'txtCheckCode':captcha,
                '__VIEWSTATE':'/wEPDwULLTEwMjY5MTUwNjUPZBYCAgMPZBYCAgUPDxYCHgRUZXh0BT88Zm9udCBjb2xvcj1yZWQ+PGI+6aqM6K+B56CB6ZSZ6K+v77yM6K+36YeN5paw6L6T5YWlPC9iPjwvZm9udD5kZBgBBR5fX0NvbnRyb2xzUmVxdWlyZVBvc3RCYWNrS2V5X18WAQUHQnV0dG9uMYBe0FqCcPn688UB66TnPvtxo6OHlKm7EVl0hdmhthmr',
               '__VIEWSTATEGENERATOR':'B0A1EB3C',
@@ -42,10 +47,9 @@ def login():
     
     headers={'User-Agent':'Mozilla/5.0 (X11; Linux x86_64; rv:49.0) Gecko/20100101 Firefox/49.0',
             'Host':'s.crpa.net.cn'}
-    session.post('http://s.crpa.net.cn/mlogin.aspx',headers=headers,data=postdata,allow_redirects=True)
+    session.post(url,headers=headers,data=postdata,allow_redirects=True)
 
-def collect_entries():
-    month='201610'
+def collect_entries(month='201610'):
     month_url='http://s.crpa.net.cn/default.aspx?month='+month
     r=session.get(month_url)
     
@@ -77,11 +81,12 @@ def collect_entries():
 
 #%%
 
-def get_page(url):
-    resp=session.get(url)
+def get_page(url,timeout=5):
+    resp=session.get(url,timeout=timeout)
     if resp.text.find('请输入验证码登录')!=-1:
-        login()
-    return session.get(url)
+        login(yundama=True)
+        resp=session.get(url,timeout=timeout)
+    return resp
 
 def crawl(entry):
     has_entry=False
@@ -106,6 +111,7 @@ def crawl(entry):
                 table=None
             else:
                 next_page_url='http://s.crpa.net.cn/'+next_page.get('href')
+                print('next_page_url',next_page_url)
                 next_page_resp=get_page(next_page_url)
                 next_page_soup=BeautifulSoup(next_page_resp.text,'lxml')
                 soup=next_page_soup
@@ -132,12 +138,12 @@ class CrawlThread(Thread):
 
 
 if __name__=='__main__':
-    login()
+    login(yundama=True)
     time1=time.time()
     entries=collect_entries()
     random.shuffle(entries)
     length=len(entries)
-    parts=20
+    parts=10
     num_part=length//parts
     threads=[]
     for i in range(parts):

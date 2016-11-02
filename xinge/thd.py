@@ -8,22 +8,33 @@ Created on Mon Oct 31 23:02:37 2016
 
 import random
 from threading import Thread
-
-class MyThread(Thread):
-    def __init__(self,thread_id,nums):
-        Thread.__init__(self)
-        self.thread_id=thread_id
-        self.nums=nums
-    def run(self):
-        for i in self.nums:
-            print('In thread ', self.thread_id,' we print ',i)  
+from queue import Queue
 
 l=list(range(10000))
-random.shuffle(l)
+
+q=Queue()
+for item in l:
+    q.put(item)
+
+
+class MyThread(Thread):
+    def __init__(self,thread_id):
+        Thread.__init__(self)
+        self.thread_id=thread_id
+    def run(self):
+        while True:
+            item=q.get()
+            if item is None:
+                break
+            print('In thread ', self.thread_id,' we print ',item)
+            q.task_done()
+
 threads=[]
+
 for i in range(10):
-    new_partition=l[i*1000:(i+1)*1000]
-    new_thread=MyThread(i,new_partition)
+    q.put(None)
+for i in range(10):
+    new_thread=MyThread(i)
     threads.append(new_thread)
     new_thread.start()
 

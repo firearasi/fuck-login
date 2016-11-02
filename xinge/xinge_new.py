@@ -4,7 +4,8 @@ import requests
 import random,time
 from PIL import Image
 from bs4 import BeautifulSoup
-
+import os
+import csv
 
 def login(yundama=False):
     session=requests.session()
@@ -26,6 +27,11 @@ def login(yundama=False):
         ydm=YunDaMa('firearasi','icw4ever')
         cid,captcha=ydm.get_captcha(image.content,'captcha.jpg','image/jpeg')
         print('captcha recognized:',captcha)
+        if captcha is None:
+            im=Image.open('captcha.jpg')
+            im.show()
+            im.close()
+            captcha=input('Input captcha:')
     postdata={'txtCheckCode':captcha,
                '__VIEWSTATE':'/wEPDwULLTEwMjY5MTUwNjUPZBYCAgMPZBYCAgUPDxYCHgRUZXh0BT88Zm9udCBjb2xvcj1yZWQ+PGI+6aqM6K+B56CB6ZSZ6K+v77yM6K+36YeN5paw6L6T5YWlPC9iPjwvZm9udD5kZBgBBR5fX0NvbnRyb2xzUmVxdWlyZVBvc3RCYWNrS2V5X18WAQUHQnV0dG9uMYBe0FqCcPn688UB66TnPvtxo6OHlKm7EVl0hdmhthmr',
               '__VIEWSTATEGENERATOR':'B0A1EB3C',
@@ -39,6 +45,11 @@ def login(yundama=False):
     return session
 
 def collect_entries(session,month='201610'):
+    
+    try:
+        os.stat(month)
+    except:
+        os.mkdir(month)
     month_url='http://s.crpa.net.cn/default.aspx?month='+month
     r=session.get(month_url)
     
@@ -84,6 +95,7 @@ def get_page(session,url,sleep=1):
     return sess,resp
 
 def crawl(session,entry):
+    global month
     has_entry=False
     name,entry_url=entry
     sess,req=get_page(session,entry_url)
@@ -108,8 +120,10 @@ def crawl(session,entry):
                 for row in rows:
                     cells=row.findAll('td')
                     strings=[c.get_text() for c in cells]
-                    line=','.join(strings)
-                    output.append(line)
+                    #line=','.join(strings)
+                    #output.append(line)
+                    if len(strings)>0:
+                        output.append(strings)
             next_page=soup.find('a',id='hylnext')
             if next_page is None:
                 table=None
@@ -123,10 +137,15 @@ def crawl(session,entry):
        if len(output)>0:
             filename=name.strip()+'.csv'
             filename=filename.replace('/','-')
-            filename='tables/'+filename
-            with open(filename,'w') as f:
-                f.write('排名,卡号,鸽主,棚号,足环号,性别,羽色,眼砂,归巢时间,空距,分速,分赛')
-                f.write('\n'.join(output))
+            filename=month+'/'+filename
+            with open(filename,'w',newline='') as f:
+                #f.write('排名,卡号,鸽主,棚号,足环号,性别,羽色,眼砂,归巢时间,空距,分速,分赛')
+                #f.write('\n'.join(output))
+                writer=csv.writer(f)
+                writer.writerow(['排名','卡号','鸽主','棚号','足环号','性别','羽色','眼砂',
+                                 '归巢时间','空距','分速','分赛'])
+                print('row0',output[0])
+                writer.writerows(output)
     if has_entry:
         print(name)
     return sess
@@ -147,10 +166,11 @@ class CrawlThread(Thread):
 if __name__=='__main__':
     session=login(yundama=True)
     time1=time.time()
-    entries=collect_entries(session, month='201610')
+    month='201610'
+    entries=collect_entries(session, month=month)
     random.shuffle(entries)
     length=len(entries)
-    parts=1 #线程数
+    parts=5 #线程数
     num_part=length//parts
     threads=[]
     for i in range(parts):
